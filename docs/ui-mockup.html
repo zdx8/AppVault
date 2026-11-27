@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AppVault — macOS 应用保险箱 UI 效果图 (shadcn/ui)</title>
+  <style>
+    /* ============================================================
+       shadcn/ui Zinc Design Tokens (Light & Dark)
+       ============================================================ */
+    :root {
+      --background: hsl(0 0% 100%);
+      --foreground: hsl(240 10% 3.9%);
+      --card: hsl(0 0% 100%);
+      --card-foreground: hsl(240 10% 3.9%);
+      --popover: hsl(0 0% 100%);
+      --popover-foreground: hsl(240 10% 3.9%);
+      --primary: hsl(240 5.9% 10%);
+      --primary-foreground: hsl(0 0% 98%);
+      --secondary: hsl(240 4.8% 95.9%);
+      --secondary-foreground: hsl(240 5.9% 10%);
+      --muted: hsl(240 4.8% 95.9%);
+      --muted-foreground: hsl(240 3.8% 46.1%);
+      --accent: hsl(240 4.8% 95.9%);
+      --accent-foreground: hsl(240 5.9% 10%);
+      --destructive: hsl(0 84.2% 60.2%);
+      --destructive-foreground: hsl(0 0% 98%);
+      --border: hsl(240 5.9% 90%);
+      --input: hsl(240 5.9% 90%);
+      --ring: hsl(240 5.9% 10%);
+      --radius: 0.5rem;
+
+      /* Semantic status colors (subtle, restrained) */
+      --emerald-bg: hsl(152 81% 96%);
+      --emerald-fg: hsl(161 94% 24%);
+      --emerald-border: hsl(152 60% 84%);
+      --amber-bg: hsl(48 96% 94%);
+      --amber-fg: hsl(32 95% 32%);
+      --amber-border: hsl(45 90% 80%);
+      --red-bg: hsl(0 86% 97%);
+      --red-fg: hsl(0 72% 45%);
+      --red-border: hsl(0 70% 88%);
+
+      /* Stage & macOS chrome */
+      --stage-bg: hsl(240 5% 94%);
+      --menubar-bg: hsla(0, 0%, 100%, 0.78);
+      --window-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.16), 0 0 0 1px var(--border);
+      --popover-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.16), 0 0 0 1px var(--border);
+    }
+
+    html.dark {
+      --background: hsl(240 10% 3.9%);
+      --foreground: hsl(0 0% 98%);
+      --card: hsl(240 10% 3.9%);
+      --card-foreground: hsl(0 0% 98%);
+      --popover: hsl(240 10% 5.5%);
+      --popover-foreground: hsl(0 0% 98%);
+      --primary: hsl(0 0% 98%);
+      --primary-foreground: hsl(240 5.9% 10%);
+      --secondary: hsl(240 3.7% 15.9%);
+      --secondary-foreground: hsl(0 0% 98%);
+      --muted: hsl(240 3.7% 15.9%);
+      --muted-foreground: hsl(240 5% 64.9%);
+      --accent: hsl(240 3.7% 15.9%);
+      --accent-foreground: hsl(0 0% 98%);
+      --destructive: hsl(0 62.8% 30.6%);
+      --destructive-foreground: hsl(0 0% 98%);
+      --border: hsl(240 3.7% 15.9%);
+      --input: hsl(240 3.7% 15.9%);
+      --ring: hsl(240 4.9% 83.9%);
+
+      --emerald-bg: hsl(160 60% 10%);
+      --emerald-fg: hsl(152 76% 62%);
+      --emerald-border: hsl(160 45% 20%);
+      --amber-bg: hsl(35 60% 11%);
+      --amber-fg: hsl(43 96% 64%);
+      --amber-border: hsl(35 48% 22%);
+      --red-bg: hsl(0 50% 12%);
+      --red-fg: hsl(0 85% 70%);
+      --red-border: hsl(0 45% 24%);
+
+      --stage-bg: hsl(240 8% 8%);
+      --menubar-bg: hsla(240, 10%, 7%, 0.82);
+      --window-shadow: 0 28px 70px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border);
+      --popover-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      background: var(--stage-bg);
+      color: var(--foreground);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+    /* ============================================================
+       Demo Toolbar (Top Inspector Strip)
+       ============================================================ */
+    .demo-bar {
+      background: var(--background);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 60;
+    }
+    .demo-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .demo-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* ============================================================
+       shadcn/ui Primitives
+       ============================================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: calc(var(--radius) - 2px);
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .btn-sm { height: 28px; padding: 0 10px; font-size: 12px; }
+    .btn-icon { width: 28px; height: 28px; padding: 0; }
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary {
+      background: var(--secondary);
+      color: var(--secondary-foreground);
+    }
+    .btn-secondary:hover { background: var(--accent); opacity: 0.85; }
+    .btn-outline {
+      background: var(--background);
+      color: var(--foreground);
+      border-color: var(--border);
+    }
+    .btn-outline:hover { background: var(--accent); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--foreground);
+    }
+    .btn-ghost:hover { background: var(--accent); }
+    .btn-destructive {
+      background: var(--destructive);
+      color: var(--destructive-foreground);
+    }
+    .btn-destructive:hover { opacity: 0.9; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--secondary);
+      color: var(--secondary-foreground);
+    }
+    .badge-emerald { background: var(--emerald-bg); color: var(--emerald-fg); border-color: var(--emerald-border); }
+    .badge-amber { background: var(--amber-bg); color: var(--amber-fg); border-color: var(--amber-border); }
+    .badge-red { background: var(--red-bg); color: var(--red-fg); border-color: var(--red-border); }
+    .badge-outline { background: transparent; color: var(--muted-foreground); }
+
+    .dot { width: 6px; height: 6px; border-radius: 9999px; display: inline-block; }
+    .dot-emerald { background: hsl(152 72% 42%); }
+    .dot-amber { background: hsl(38 92% 50%); }
+    .dot-muted { background: var(--muted-foreground); }
+
+    .card {
+      background: var(--card);
+      color: var(--card-foreground);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .input {
+      height: 32px;
+      width: 100%;
+      padding: 0 10px;
+      border-radius: calc(var(--radius) - 2px);
+      border: 1px solid var(--input);
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 12.5px;
+      outline: none;
+    }
+    .input:focus { border-color: var(--ring); box-shadow: 0 0 0 2px hsla(240, 5.9%, 50%, 0.15); }
+
+    .kbd {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 5px;
+      font-family: ui-monospace, "SF Mono", monospace;
+      font-size: 10.5px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--muted);
+      color: var(--muted-foreground);
+    }
+
+    /* Switch */
+    .switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      border-radius: 9999px;
+      background: var(--input);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      width: 16px;
+      height: 16px;
+      border-radius: 9999px;
+      background: var(--background);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      transition: transform 0.15s;
+    }
+    .switch.checked { background: var(--primary); border-color: var(--primary); }
+    .switch.checked::after { transform: translateX(16px); background: var(--primary-foreground); }
+
+    /* ============================================================
+       Simulated macOS Desktop Canvas
+       ============================================================ */
+    .macos-stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: auto;
+    }
+
+    .macos-menubar {
+      height: 28px;
+      background: var(--menubar-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      user-select: none;
+      position: relative;
+      z-index: 40;
+    }
+    .menubar-left, .menubar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .menubar-app-name { font-weight: 600; }
+    .menubar-item { color: var(--foreground); opacity: 0.85; cursor: default; }
+    .menubar-tray-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--foreground);
+      font-size: 11.5px;
+      font-weight: 500;
+    }
+    .menubar-tray-btn:hover, .menubar-tray-btn.active { background: var(--accent); }
+
+    /* Menu Bar Popover */
+    .menubar-popover {
+      position: absolute;
+      top: 34px;
+      right: 16px;
+      width: 320px;
+      background: var(--popover);
+      color: var(--popover-foreground);
+      border-radius: 10px;
+      box-shadow: var(--popover-shadow);
+      z-index: 50;
+      overflow: hidden;
+      display: none;
+    }
+    .menubar-popover.open { display: block; }
+    .popover-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .popover-body { padding: 10px 14px; }
+    .popover-footer {
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .popover-app-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 8px;
+      border-radius: 6px;
+      transition: background 0.12s;
+    }
+    .popover-app-row:hover { background: var(--accent); }
+
+    /* Desktop Workspace Area */
+    .desktop-area {
+      flex: 1;
+      padding: 28px 24px 44px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    /* ============================================================
+       Main macOS App Window (AppVault Manager)
+       ============================================================ */
+    .mac-window {
+      width: 920px;
+      min-height: 600px;
+      background: var(--background);
+      border-radius: 12px;
+      box-shadow: var(--window-shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .window-titlebar {
+      height: 44px;
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--background);
+      user-select: none;
+    }
+    .traffic-lights {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 120px;
+    }
+    .tl { width: 12px; height: 12px; border-radius: 9999px; }
+    .tl-red { background: #ff5f57; border: 0.5px solid rgba(0,0,0,0.12); }
+    .tl-yellow { background: #febc2e; border: 0.5px solid rgba(0,0,0,0.12); }
+    .tl-green { background: #28c840; border: 0.5px solid rgba(0,0,0,0.12); }
+
+    .window-title {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .window-body {
+      flex: 1;
+      display: flex;
+      min-height: 556px;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 224px;
+      border-right: 1px solid var(--border);
+      background: var(--background);
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .vault-status-box {
+      padding: 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--muted);
+      margin-bottom: 14px;
+    }
+    .progress-track {
+      height: 5px;
+      border-radius: 9999px;
+      background: var(--border);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 21%;
+      background: var(--primary);
+      border-radius: 9999px;
+    }
+
+    .nav-list { display: flex; flex-direction: column; gap: 3px; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: calc(var(--radius) - 2px);
+      color: var(--muted-foreground);
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      width: 100%;
+      text-align: left;
+      transition: background 0.12s, color 0.12s;
+    }
+    .nav-item:hover { background: var(--accent); color: var(--foreground); }
+    .nav-item.active { background: var(--secondary); color: var(--foreground); font-weight: 600; }
+    .nav-item-left { display: flex; align-items: center; gap: 8px; }
+
+    /* Main Content Pane */
+    .main-pane {
+      flex: 1;
+      padding: 20px 24px;
+      overflow-y: auto;
+      position: relative;
+    }
+    .view-section { display: none; }
+    .view-section.active { display: block; }
+
+    .pane-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .pane-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+    .pane-desc { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
+
+    /* KPI Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .kpi-card {
+      padding: 11px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+    }
+    .kpi-label { font-size: 11px; color: var(--muted-foreground); }
+    .kpi-val { font-size: 18px; font-weight: 600; margin-top: 2px; letter-spacing: -0.02em; }
+    .kpi-sub { font-size: 11px; color: var(--muted-foreground); margin-top: 2px; }
+
+    /* App List Cards */
+    .app-list { display: flex; flex-direction: column; gap: 8px; }
+    .app-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      transition: border-color 0.15s;
+    }
+    .app-card:hover { border-color: var(--muted-foreground); }
+    .app-card-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .app-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+      background: var(--secondary);
+      color: var(--foreground);
+    }
+    .app-meta { min-width: 0; }
+    .app-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .app-name { font-weight: 600; font-size: 13.5px; }
+    .app-sub {
+      font-size: 11.5px;
+      color: var(--muted-foreground);
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .tag-pill {
+      font-size: 10.5px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--muted);
+      color: var(--muted-foreground);
+      border: 1px solid var(--border);
+    }
+    .app-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+    /* Locked Curtain Overlay inside Main Window */
+    .locked-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: 460px;
+      padding: 32px;
+    }
+    .lock-emblem {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: var(--muted);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    /* Dropzone & Ingest Wizard */
+    .dropzone {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      text-align: center;
+      background: var(--muted);
+      margin-bottom: 14px;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .check-row:last-child { border-bottom: none; }
+
+    /* Settings List */
+    .settings-group {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+    .settings-row:last-child { border-bottom: none; }
+    .settings-label { font-weight: 500; font-size: 13px; }
+    .settings-help { font-size: 11.5px; color: var(--muted-foreground); margin-top: 2px; }
+
+    /* Activity Log */
+    .log-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .log-row:last-child { border-bottom: none; }
+
+    /* Modal Sheet (Unlock & Mapping Details) */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-card {
+      width: 400px;
+      max-width: 100%;
+      background: var(--popover);
+      color: var(--popover-foreground);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--window-shadow);
+      padding: 20px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 12.5px;
+      font-weight: 500;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 120;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    svg.icon { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    svg.icon-lg { width: 22px; height: 22px; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Interactive Preview Inspector -->
+  <header class="demo-bar">
+    <div class="demo-title">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <span>AppVault UI 效果图</span>
+      <span class="badge badge-outline">shadcn/ui · Zinc Tokens</span>
+      <span class="badge badge-outline">macOS 14+ Native Spec</span>
+    </div>
+    <div class="demo-controls">
+      <button class="btn btn-outline btn-sm" id="btn-toggle-theme">切换深色模式</button>
+      <button class="btn btn-outline btn-sm" id="btn-toggle-popover">预览菜单栏面板</button>
+      <button class="btn btn-outline btn-sm" id="btn-open-unlock">预览 Touch ID 解锁弹窗</button>
+      <button class="btn btn-primary btn-sm" id="btn-toggle-lock">模拟一键锁定 (⌃⌥⌘L)</button>
+    </div>
+  </header>
+
+  <!-- Simulated macOS Environment -->
+  <div class="macos-stage">
+    <!-- Simulated macOS Menu Bar -->
+    <div class="macos-menubar">
+      <div class="menubar-left">
+        <span style="font-size:14px;"></span>
+        <span class="menubar-app-name">AppVault</span>
+        <span class="menubar-item">文件</span>
+        <span class="menubar-item">容器</span>
+        <span class="menubar-item">窗口</span>
+        <span class="menubar-item">帮助</span>
+      </div>
+      <div class="menubar-right">
+        <button class="menubar-tray-btn active" id="menubar-tray-trigger" title="点击打开 AppVault 菜单栏面板">
+          <span class="dot dot-emerald" id="tray-status-dot"></span>
+          <svg class="icon" style="width:13px;height:13px;" id="tray-lock-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+          <span id="tray-status-text">已解锁</span>
+        </button>
+        <span class="menubar-item">周四 18:10</span>
+      </div>
+
+      <!-- MenuBarExtra Popover (320px) -->
+      <div class="menubar-popover open" id="menubar-popover">
+        <div class="popover-header">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <strong style="font-size:13px;">AppVault</strong>
+            <span class="badge badge-emerald" id="pop-status-badge"><span class="dot dot-emerald"></span>已解锁</span>
+          </div>
+          <span class="kbd">⌃⌥⌘L</span>
+        </div>
+
+        <!-- Unlocked Popover Content -->
+        <div class="popover-body" id="pop-unlocked-body">
+          <div style="font-size:11px;color:var(--muted-foreground);margin-bottom:6px;display:flex;justify-content:space-between;">
+            <span>受管应用（退出即自动重锁）</span>
+            <span class="mono">4 项</span>
+          </div>
+          <div id="pop-app-list"></div>
+        </div>
+
+        <!-- Locked Popover Content -->
+        <div class="popover-body" id="pop-locked-body" style="display:none;padding:18px 14px;text-align:center;">
+          <div style="font-size:12.5px;font-weight:500;margin-bottom:4px;">加密容器已锁定隐藏</div>
+          <div style="font-size:11.5px;color:var(--muted-foreground);margin-bottom:14px;">Finder、Spotlight 与 Launchpad 均不可见</div>
+          <button class="btn btn-primary" style="width:100%;" onclick="openUnlockModal()">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>
+            使用 Touch ID 或密码解锁
+          </button>
+        </div>
+
+        <div class="popover-footer">
+          <button class="btn btn-outline btn-sm" onclick="focusManagerWindow()">打开管理窗口</button>
+          <button class="btn btn-secondary btn-sm" id="pop-lock-btn" onclick="toggleLockState()">立即锁定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop Workspace -->
+    <main class="desktop-area">
+      <section class="mac-window" aria-label="AppVault 主管理窗口">
+        <!-- macOS Titlebar -->
+        <div class="window-titlebar">
+          <div class="traffic-lights">
+            <span class="tl tl-red"></span>
+            <span class="tl tl-yellow"></span>
+            <span class="tl tl-green"></span>
+          </div>
+          <div class="window-title">
+            <span>AppVault</span>
+            <span class="badge badge-emerald" id="win-status-badge"><span class="dot dot-emerald"></span>AES-256 私有挂载</span>
+          </div>
+          <div style="width:120px;display:flex;justify-content:flex-end;">
+            <span class="badge badge-outline" title="关闭窗口自动隐藏 Dock 图标">仅菜单栏驻留</span>
+          </div>
+        </div>
+
+        <!-- Window Body -->
+        <div class="window-body">
+          <!-- Sidebar -->
+          <aside class="sidebar">
+            <div>
+              <div class="vault-status-box">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font-size:12px;font-weight:600;">主加密容器</span>
+                  <span class="mono" style="font-size:10.5px;color:var(--muted-foreground);">APFS</span>
+                </div>
+                <div style="font-size:11px;color:var(--muted-foreground);margin-top:4px;" id="sidebar-mount-hint">
+                  已用 4.2 GB / 稀疏上限 20 GB
+                </div>
+                <div class="progress-track"><div class="progress-fill"></div></div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;">
+                  <span class="tag-pill">-nobrowse</span>
+                  <span class="tag-pill">无索引</span>
+                </div>
+              </div>
+
+              <nav class="nav-list">
+                <button class="nav-item active" data-view="apps">
+                  <span class="nav-item-left">
+                    <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+                    保险箱应用
+                  </span>
+                  <span class="mono" style="font-size:11px;">4</span>
+                </button>
+                <button class="nav-item" data-view="ingest">
+                  <span class="nav-item-left">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    导入应用
+                  </span>
+                </button>
+                <button class="nav-item" data-view="security">
+                  <span class="nav-item-left">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    安全与自动锁
+                  </span>
+                </button>
+                <button class="nav-item" data-view="logs">
+                  <span class="nav-item-left">
+                    <svg class="icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    活动日志
+                  </span>
+                </button>
+              </nav>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <button class="btn btn-primary" style="width:100%;" id="sidebar-lock-btn" onclick="toggleLockState()">
+                <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                立即锁定并隐藏
+              </button>
+              <div style="font-size:10.5px;color:var(--muted-foreground);text-align:center;">
+                紧急锁定快捷键 <span class="kbd">⌃⌥⌘L</span>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Main Content -->
+          <div class="main-pane">
+            <!-- Locked State Curtain -->
+            <div id="locked-curtain" class="locked-state" style="display:none;">
+              <div class="lock-emblem">
+                <svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <h2 style="font-size:16px;font-weight:600;margin-bottom:6px;">保险箱已锁定</h2>
+              <p style="font-size:12.5px;color:var(--muted-foreground);max-width:340px;margin-bottom:18px;">
+                加密卷已安全卸载，~/Library 软链已撤除。受管应用清单仅存于 AES-256 密文卷内，当前不暴露任何应用名称。
+              </p>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary" onclick="openUnlockModal()">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>
+                  Touch ID 解锁
+                </button>
+                <button class="btn btn-outline" onclick="openUnlockModal('password')">输入主密码</button>
+              </div>
+            </div>
+
+            <!-- View 1: Vault Apps -->
+            <div class="view-section active" id="view-apps">
+              <div class="pane-header">
+                <div>
+                  <h1 class="pane-title">保险箱应用</h1>
+                  <p class="pane-desc">仅在解锁挂载期间通过软链桥接运行，所有受管进程退出后自动撤链并卸载容器。</p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input class="input" style="width:170px;" id="search-input" placeholder="搜索受管应用..." oninput="renderApps()" />
+                  <button class="btn btn-primary btn-sm" onclick="switchView('ingest')">+ 导入 .app</button>
+                </div>
+              </div>
+
+              <div class="kpi-grid">
+                <div class="kpi-card">
+                  <div class="kpi-label">已隐身应用</div>
+                  <div class="kpi-val">4</div>
+                  <div class="kpi-sub">Launchpad 已注销</div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-label">运行中进程</div>
+                  <div class="kpi-val" id="kpi-running">1</div>
+                  <div class="kpi-sub" id="kpi-running-sub">退出后自动重锁</div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-label">容器占用</div>
+                  <div class="kpi-val">4.2 GB</div>
+                  <div class="kpi-sub">含应用与数据目录</div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-label">挂载隐身状态</div>
+                  <div class="kpi-val" style="font-size:14px;padding-top:3px;">三重隐身</div>
+                  <div class="kpi-sub">Finder / Spotlight 不可见</div>
+                </div>
+              </div>
+
+              <div class="app-list" id="main-app-list"></div>
+            </div>
+
+            <!-- View 2: Ingest .app Wizard -->
+            <div class="view-section" id="view-ingest">
+              <div class="pane-header">
+                <div>
+                  <h1 class="pane-title">导入应用到保险箱</h1>
+                  <p class="pane-desc">拖入第三方非沙盒 .app，自动识别 Bundle ID 与 ~/Library 数据路径并迁入加密容器。</p>
+                </div>
+                <div style="display:flex;gap:6px;">
+                  <button class="btn btn-outline btn-sm" onclick="setIngestSample('nonsandbox')">示例：Telegram（非沙盒）</button>
+                  <button class="btn btn-outline btn-sm" onclick="setIngestSample('sandbox')">示例：Bear（沙盒拦截）</button>
+                </div>
+              </div>
+
+              <div class="dropzone">
+                <div style="font-weight:600;margin-bottom:4px;">拖拽 .app 到此处，或从 /Applications 选择</div>
+                <div style="font-size:11.5px;color:var(--muted-foreground);">自动检测 SIP 保护、App Sandbox 标记与关联数据体积</div>
+              </div>
+
+              <div class="card" id="ingest-preview-card" style="overflow:hidden;">
+                <!-- Rendered by JS -->
+              </div>
+            </div>
+
+            <!-- View 3: Security & Auto-Lock -->
+            <div class="view-section" id="view-security">
+              <div class="pane-header">
+                <div>
+                  <h1 class="pane-title">安全与自动锁定</h1>
+                  <p class="pane-desc">主密码通过 stdin 管道直通 hdiutil，不写入日志、配置或剪贴板。</p>
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-row">
+                  <div>
+                    <div class="settings-label">启用 Touch ID 硬件解锁</div>
+                    <div class="settings-help">使用 Secure Enclave 钥匙串（.biometryCurrentSet）封装卷密码，指纹变更自动失效</div>
+                  </div>
+                  <button class="switch checked" onclick="this.classList.toggle('checked');showToast('已更新 Touch ID 策略')"></button>
+                </div>
+                <div class="settings-row">
+                  <div>
+                    <div class="settings-label">目标应用全部退出即自动重锁</div>
+                    <div class="settings-help">退出后等待 1.5s 校验 lsof 句柄，无残留进程时立即撤除软链并 detach 容器</div>
+                  </div>
+                  <button class="switch checked" onclick="this.classList.toggle('checked')"></button>
+                </div>
+                <div class="settings-row">
+                  <div>
+                    <div class="settings-label">系统休眠或锁屏时立即锁定</div>
+                    <div class="settings-help">订阅 willSleep 与 screenIsLocked 通知，优雅终止保险箱内应用并卸载</div>
+                  </div>
+                  <button class="switch checked" onclick="this.classList.toggle('checked')"></button>
+                </div>
+                <div class="settings-row">
+                  <div>
+                    <div class="settings-label">空闲自动锁定超时</div>
+                    <div class="settings-help">无键鼠操作且无活跃前台交互时触发安全锁定</div>
+                  </div>
+                  <select class="input" style="width:120px;">
+                    <option>5 分钟</option>
+                    <option selected>15 分钟</option>
+                    <option>30 分钟</option>
+                    <option>关闭</option>
+                  </select>
+                </div>
+                <div class="settings-row">
+                  <div>
+                    <div class="settings-label">锁定时顺带清理 QuickLook 缩略图缓存</div>
+                    <div class="settings-help">执行 qlmanage -r cache，减少系统预览缓存中的文件名/缩略图残留</div>
+                  </div>
+                  <button class="switch checked" onclick="this.classList.toggle('checked')"></button>
+                </div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-row">
+                  <div>
+                    <div class="settings-label">容器维护操作</div>
+                    <div class="settings-help">回收删除应用后的稀疏卷磁盘空间（hdiutil compact）或更换主密码</div>
+                  </div>
+                  <div style="display:flex;gap:8px;">
+                    <button class="btn btn-outline btn-sm" onclick="showToast('已执行 hdiutil compact，回收 310 MB')">压缩空间</button>
+                    <button class="btn btn-outline btn-sm" onclick="showToast('请先锁定容器后再修改主密码')">修改主密码</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- View 4: Activity Logs -->
+            <div class="view-section" id="view-logs">
+              <div class="pane-header">
+                <div>
+                  <h1 class="pane-title">活动日志（仅内存保留）</h1>
+                  <p class="pane-desc">脱敏记录挂载、软链桥接与锁定事件，应用退出后自动清空，不落盘敏感路径。</p>
+                </div>
+                <button class="btn btn-outline btn-sm" onclick="clearLogs()">清空记录</button>
+              </div>
+              <div class="card" id="log-container" style="overflow:hidden;"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal 1: Touch ID / Master Password Unlock Sheet -->
+  <div class="modal-backdrop" id="unlock-modal">
+    <div class="modal-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <strong style="font-size:14px;">解锁 AppVault 加密容器</strong>
+        </div>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('unlock-modal')">✕</button>
+      </div>
+
+      <!-- Segmented Mode Switch -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;background:var(--muted);border-radius:8px;margin-bottom:16px;">
+        <button class="btn btn-sm" id="tab-touchid" onclick="setAuthTab('touchid')">Touch ID</button>
+        <button class="btn btn-sm" id="tab-password" onclick="setAuthTab('password')">主密码</button>
+      </div>
+
+      <!-- Touch ID Panel -->
+      <div id="auth-panel-touchid" style="text-align:center;padding:10px 0 6px;">
+        <div style="width:52px;height:52px;border-radius:9999px;background:var(--secondary);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;margin-bottom:10px;">
+          <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>
+        </div>
+        <div style="font-size:13px;font-weight:500;">轻触 Touch ID 验证身份</div>
+        <div style="font-size:11.5px;color:var(--muted-foreground);margin-top:3px;margin-bottom:16px;">
+          验证通过后将自动从 Secure Enclave 取密并私有挂载
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="completeUnlock('Touch ID')">模拟 Touch ID 验证通过</button>
+      </div>
+
+      <!-- Password Panel -->
+      <div id="auth-panel-password" style="display:none;">
+        <label style="display:block;font-size:12px;font-weight:500;margin-bottom:6px;">主密码</label>
+        <input type="password" class="input" id="master-pwd-input" placeholder="输入加密容器主密码..." />
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted-foreground);margin-top:6px;margin-bottom:16px;">
+          <span>经 stdin 管道传入，不落盘</span>
+          <span>输入法：ABC</span>
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="completeUnlock('主密码')">解锁并隐藏挂载</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Symlink Mapping Details -->
+  <div class="modal-backdrop" id="mapping-modal">
+    <div class="modal-card" style="width:460px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <strong style="font-size:14px;" id="mapping-modal-title">数据软链映射详情</strong>
+        <button class="btn btn-ghost btn-icon" onclick="closeModal('mapping-modal')">✕</button>
+      </div>
+      <div id="mapping-modal-body"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+        <button class="btn btn-outline btn-sm" onclick="closeModal('mapping-modal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const state = {
+      unlocked: true,
+      currentView: 'apps',
+      ingestSample: 'nonsandbox',
+      apps: [
+        {
+          id: 'tg',
+          name: 'Telegram',
+          initials: 'TG',
+          bundleId: 'ru.keepcoder.Telegram',
+          version: '11.4.2',
+          size: '1.18 GB',
+          running: true,
+          mappings: [
+            { label: 'App Support', host: '~/Library/Application Support/Telegram', vault: 'data/ru.keepcoder.Telegram/AppSupport', size: '980 MB' },
+            { label: 'Preferences', host: '~/Library/Preferences/ru.keepcoder.Telegram.plist', vault: 'data/ru.keepcoder.Telegram/Prefs.plist', size: '48 KB' },
+            { label: 'Caches', host: '~/Library/Caches/ru.keepcoder.Telegram', vault: 'data/ru.keepcoder.Telegram/Caches', size: '124 MB' }
+          ]
+        },
+        {
+          id: 'wc',
+          name: 'WeChat',
+          initials: 'WC',
+          bundleId: 'com.tencent.xinWeChat',
+          version: '4.0.3',
+          size: '2.15 GB',
+          running: false,
+          mappings: [
+            { label: 'App Support', host: '~/Library/Application Support/WeChat', vault: 'data/com.tencent.xinWeChat/AppSupport', size: '1.82 GB' },
+            { label: 'Preferences', host: '~/Library/Preferences/com.tencent.xinWeChat.plist', vault: 'data/com.tencent.xinWeChat/Prefs.plist', size: '64 KB' }
+          ]
+        },
+        {
+          id: 'arc',
+          name: 'Arc',
+          initials: 'AR',
+          bundleId: 'company.thebrowser.Browser',
+          version: '1.68.0',
+          size: '640 MB',
+          running: false,
+          mappings: [
+            { label: 'App Support', host: '~/Library/Application Support/Arc', vault: 'data/company.thebrowser.Browser/AppSupport', size: '410 MB' },
+            { label: 'Caches', host: '~/Library/Caches/company.thebrowser.Browser', vault: 'data/company.thebrowser.Browser/Caches', size: '95 MB' }
+          ]
+        },
+        {
+          id: 'obs',
+          name: 'Obsidian',
+          initials: 'OB',
+          bundleId: 'md.obsidian',
+          version: '1.7.7',
+          size: '230 MB',
+          running: false,
+          mappings: [
+            { label: 'App Support', host: '~/Library/Application Support/obsidian', vault: 'data/md.obsidian/AppSupport', size: '84 MB' },
+            { label: 'Preferences', host: '~/Library/Preferences/md.obsidian.plist', vault: 'data/md.obsidian/Prefs.plist', size: '16 KB' }
+          ]
+        }
+      ],
+      logs: [
+        { time: '18:08:14', level: 'emerald', msg: 'Touch ID 认证通过，私有挂载点 0700 已就绪（-nobrowse）' },
+        { time: '18:08:15', level: 'outline', msg: '已建立 Telegram 关联软链（3 项）并启动主进程' },
+        { time: '17:42:03', level: 'amber', msg: '检测到受管进程全部退出，已撤除软链并安全 detach（耗时 0.4s）' }
+      ]
+    };
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove('show'), 2400);
+    }
+
+    function addLog(level, msg) {
+      const now = new Date();
+      const t = now.toTimeString().slice(0, 8);
+      state.logs.unshift({ time: t, level, msg });
+      renderLogs();
+    }
+
+    function renderApps() {
+      const q = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+      const filtered = state.apps.filter(a => a.name.toLowerCase().includes(q) || a.bundleId.toLowerCase().includes(q));
+      const runningCount = state.apps.filter(a => a.running).length;
+      document.getElementById('kpi-running').textContent = runningCount;
+      document.getElementById('kpi-running-sub').textContent = runningCount > 0 ? '退出全部后自动重锁' : '当前无活跃进程';
+
+      // Main Window List
+      const mainList = document.getElementById('main-app-list');
+      mainList.innerHTML = filtered.map(app => `
+        <div class="app-card">
+          <div class="app-card-left">
+            <div class="app-icon">${app.initials}</div>
+            <div class="app-meta">
+              <div class="app-name-row">
+                <span class="app-name">${app.name}</span>
+                <span class="mono" style="font-size:11px;color:var(--muted-foreground);">v${app.version}</span>
+                ${app.running
+                  ? '<span class="badge badge-emerald"><span class="dot dot-emerald"></span>运行中</span>'
+                  : '<span class="badge badge-outline">已隐身</span>'}
+              </div>
+              <div class="app-sub">
+                <span class="mono">${app.bundleId}</span>
+                <span>·</span>
+                <span>${app.size}</span>
+                ${app.mappings.map(m => `<span class="tag-pill">${m.label}</span>`).join('')}
+              </div>
+            </div>
+          </div>
+          <div class="app-actions">
+            <button class="btn btn-outline btn-sm" onclick="openMappingModal('${app.id}')">映射</button>
+            ${app.running
+              ? `<button class="btn btn-secondary btn-sm" onclick="toggleRunApp('${app.id}')">退出应用</button>`
+              : `<button class="btn btn-primary btn-sm" onclick="toggleRunApp('${app.id}')">启动</button>`}
+            <button class="btn btn-ghost btn-sm" style="color:var(--muted-foreground);" onclick="restoreApp('${app.id}')" title="移出保险箱并恢复到 /Applications">还原</button>
+          </div>
+        </div>
+      `).join('');
+
+      // Popover List
+      const popList = document.getElementById('pop-app-list');
+      popList.innerHTML = state.apps.map(app => `
+        <div class="popover-app-row">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+            <span class="dot ${app.running ? 'dot-emerald' : 'dot-muted'}"></span>
+            <span style="font-weight:500;font-size:12.5px;">${app.name}</span>
+            <span style="font-size:11px;color:var(--muted-foreground);">${app.running ? '运行中' : app.size}</span>
+          </div>
+          <button class="btn ${app.running ? 'btn-secondary' : 'btn-outline'} btn-sm" style="height:24px;padding:0 8px;font-size:11px;" onclick="toggleRunApp('${app.id}')">
+            ${app.running ? '退出' : '启动'}
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function toggleRunApp(id) {
+      const app = state.apps.find(a => a.id === id);
+      if (!app) return;
+      app.running = !app.running;
+      if (app.running) {
+        addLog('emerald', `已重建 ${app.name} 软链并启动进程`);
+        showToast(`已启动 ${app.name}（进程监听中）`);
+        renderApps();
+      } else {
+        addLog('outline', `检测到 ${app.name} 进程退出，lsof 校验无句柄残留`);
+        const stillRunning = state.apps.some(a => a.running);
+        renderApps();
+        if (!stillRunning) {
+          showToast(`${app.name} 已退出，1.5s 后自动撤链并重锁容器...`);
+          setTimeout(() => {
+            if (state.unlocked && !state.apps.some(a => a.running)) {
+              setLockState(false, '所有受管进程已退出，已自动撤链并安全 detach');
+            }
+          }, 900);
+        } else {
+          showToast(`${app.name} 已退出`);
+        }
+      }
+    }
+
+    function restoreApp(id) {
+      const app = state.apps.find(a => a.id === id);
+      if (!app) return;
+      if (app.running) {
+        showToast(`请先退出 ${app.name} 再执行移出还原`);
+        return;
+      }
+      showToast(`演示：已将 ${app.name}.app 及数据迁回 /Applications 并重建 Spotlight 索引`);
+      addLog('outline', `已执行 ${app.name} 移出还原与 lsregister 重建`);
+    }
+
+    function setLockState(unlocked, reason) {
+      state.unlocked = unlocked;
+      if (!unlocked) state.apps.forEach(a => a.running = false);
+
+      // Update badges & controls
+      document.getElementById('locked-curtain').style.display = unlocked ? 'none' : 'flex';
+      document.querySelectorAll('.view-section').forEach(el => {
+        el.style.display = unlocked && el.id === `view-${state.currentView}` ? 'block' : 'none';
+      });
+
+      document.getElementById('pop-unlocked-body').style.display = unlocked ? 'block' : 'none';
+      document.getElementById('pop-locked-body').style.display = unlocked ? 'none' : 'block';
+
+      const winBadge = document.getElementById('win-status-badge');
+      const popBadge = document.getElementById('pop-status-badge');
+      const trayDot = document.getElementById('tray-status-dot');
+      const trayText = document.getElementById('tray-status-text');
+      const sideBtn = document.getElementById('sidebar-lock-btn');
+      const popBtn = document.getElementById('pop-lock-btn');
+      const topBtn = document.getElementById('btn-toggle-lock');
+
+      if (unlocked) {
+        winBadge.className = 'badge badge-emerald';
+        winBadge.innerHTML = '<span class="dot dot-emerald"></span>AES-256 私有挂载';
+        popBadge.className = 'badge badge-emerald';
+        popBadge.innerHTML = '<span class="dot dot-emerald"></span>已解锁';
+        trayDot.className = 'dot dot-emerald';
+        trayText.textContent = '已解锁';
+        sideBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>立即锁定并隐藏';
+        popBtn.textContent = '立即锁定';
+        topBtn.textContent = '模拟一键锁定 (⌃⌥⌘L)';
+      } else {
+        winBadge.className = 'badge badge-outline';
+        winBadge.innerHTML = '<span class="dot dot-muted"></span>已锁定隐藏';
+        popBadge.className = 'badge badge-outline';
+        popBadge.innerHTML = '<span class="dot dot-muted"></span>已锁定';
+        trayDot.className = 'dot dot-muted';
+        trayText.textContent = '已锁定';
+        sideBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>解锁容器';
+        popBtn.textContent = '解锁容器';
+        topBtn.textContent = '模拟解锁容器';
+      }
+
+      if (reason) {
+        addLog(unlocked ? 'emerald' : 'amber', reason);
+        showToast(reason);
+      }
+      renderApps();
+    }
+
+    function toggleLockState() {
+      if (state.unlocked) {
+        setLockState(false, '已手动锁定容器：撤除软链并卸载 AES-256 加密卷');
+      } else {
+        openUnlockModal();
+      }
+    }
+
+    function switchView(view) {
+      state.currentView = view;
+      document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+      if (!state.unlocked) return;
+      document.querySelectorAll('.view-section').forEach(el => {
+        el.style.display = el.id === `view-${view}` ? 'block' : 'none';
+      });
+    }
+
+    function setIngestSample(mode) {
+      state.ingestSample = mode;
+      const card = document.getElementById('ingest-preview-card');
+      if (mode === 'nonsandbox') {
+        card.innerHTML = `
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-weight:600;">Telegram.app <span class="mono" style="font-size:11px;color:var(--muted-foreground);">ru.keepcoder.Telegram</span></div>
+              <div style="font-size:11.5px;color:var(--muted-foreground);">原路径：/Applications/Telegram.app · 体积 182 MB</div>
+            </div>
+            <span class="badge badge-emerald">非沙盒 · 支持软链桥接</span>
+          </div>
+          <div class="check-row"><label><input type="checkbox" checked /> <span class="mono">~/Library/Application Support/Telegram</span></label><span class="mono" style="color:var(--muted-foreground);">980 MB</span></div>
+          <div class="check-row"><label><input type="checkbox" checked /> <span class="mono">~/Library/Preferences/ru.keepcoder.Telegram.plist</span></label><span class="mono" style="color:var(--muted-foreground);">48 KB</span></div>
+          <div class="check-row"><label><input type="checkbox" checked /> <span class="mono">~/Library/Caches/ru.keepcoder.Telegram</span></label><span class="mono" style="color:var(--muted-foreground);">124 MB</span></div>
+          <div style="padding:12px 14px;background:var(--muted);display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:11.5px;color:var(--muted-foreground);">导入后将移除原路径并执行 <span class="mono">lsregister -u</span> 注销 Launchpad</span>
+            <button class="btn btn-primary btn-sm" onclick="showToast('演示：已迁入加密卷并注销 Spotlight / Launchpad 索引')">确认移入保险箱</button>
+          </div>
+        `;
+      } else {
+        card.innerHTML = `
+          <div style="padding:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+            <div>
+              <div style="font-weight:600;margin-bottom:4px;">Bear.app <span class="mono" style="font-size:11px;color:var(--muted-foreground);">net.shinyfrog.bear</span></div>
+              <div style="font-size:12px;color:var(--muted-foreground);line-height:1.6;">
+                检测到代码签名包含 <span class="mono">com.apple.security.app-sandbox = true</span>。<br/>
+                Mac App Store 沙盒容器目录（<span class="mono">~/Library/Containers</span>）不支持跨卷软链，MVP 阶段已阻止误迁以防数据异常；二期将支持「回迁模式」。
+              </div>
+            </div>
+            <span class="badge badge-red">沙盒拦截</span>
+          </div>
+        `;
+      }
+    }
+
+    function openUnlockModal(tab = 'touchid') {
+      document.getElementById('unlock-modal').classList.add('open');
+      setAuthTab(tab);
+    }
+
+    function setAuthTab(tab) {
+      const isTouch = tab === 'touchid';
+      document.getElementById('auth-panel-touchid').style.display = isTouch ? 'block' : 'none';
+      document.getElementById('auth-panel-password').style.display = isTouch ? 'none' : 'block';
+      document.getElementById('tab-touchid').className = isTouch ? 'btn btn-sm btn-outline' : 'btn btn-sm btn-ghost';
+      document.getElementById('tab-password').className = !isTouch ? 'btn btn-sm btn-outline' : 'btn btn-sm btn-ghost';
+      if (!isTouch) setTimeout(() => document.getElementById('master-pwd-input').focus(), 50);
+    }
+
+    function completeUnlock(method) {
+      closeModal('unlock-modal');
+      setLockState(true, `${method} 验证通过，加密卷已隐藏挂载至私有 0700 目录`);
+    }
+
+    function openMappingModal(id) {
+      const app = state.apps.find(a => a.id === id);
+      if (!app) return;
+      document.getElementById('mapping-modal-title').textContent = `${app.name} — 软链映射详情`;
+      document.getElementById('mapping-modal-body').innerHTML = `
+        <div style="font-size:11.5px;color:var(--muted-foreground);margin-bottom:10px;">
+          解锁后自动建立以下符号链接；应用退出并锁定容器时全部撤除，宿主机不残留数据目录。
+        </div>
+        <div class="card" style="overflow:hidden;">
+          ${app.mappings.map(m => `
+            <div class="check-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
+              <div style="display:flex;justify-content:space-between;width:100%;">
+                <strong>${m.label}</strong>
+                <span class="mono" style="color:var(--muted-foreground);">${m.size}</span>
+              </div>
+              <div class="mono" style="font-size:11px;color:var(--muted-foreground);">宿主：${m.host}</div>
+              <div class="mono" style="font-size:11px;">卷内：&lt;private-mount&gt;/${m.vault}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      document.getElementById('mapping-modal').classList.add('open');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+
+    function renderLogs() {
+      const box = document.getElementById('log-container');
+      if (!state.logs.length) {
+        box.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted-foreground);font-size:12px;">暂无内存日志记录</div>';
+        return;
+      }
+      box.innerHTML = state.logs.map(l => `
+        <div class="log-row">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge badge-${l.level}">${l.level === 'emerald' ? '解锁' : l.level === 'amber' ? '锁定' : '事件'}</span>
+            <span>${l.msg}</span>
+          </div>
+          <span class="mono" style="color:var(--muted-foreground);flex-shrink:0;">${l.time}</span>
+        </div>
+      `).join('');
+    }
+
+    function clearLogs() {
+      state.logs = [];
+      renderLogs();
+      showToast('已清空内存活动日志');
+    }
+
+    function focusManagerWindow() {
+      document.getElementById('menubar-popover').classList.remove('open');
+      document.getElementById('menubar-tray-trigger').classList.remove('active');
+      showToast('已激活 AppVault 主窗口');
+    }
+
+    // Event bindings
+    document.querySelectorAll('.nav-item').forEach(btn => {
+      btn.addEventListener('click', () => switchView(btn.dataset.view));
+    });
+
+    document.getElementById('btn-toggle-theme').addEventListener('click', function () {
+      const html = document.documentElement;
+      const isDark = html.classList.toggle('dark');
+      html.classList.toggle('light', !isDark);
+      this.textContent = isDark ? '切换浅色模式' : '切换深色模式';
+    });
+
+    const popEl = document.getElementById('menubar-popover');
+    const trayBtn = document.getElementById('menubar-tray-trigger');
+    function togglePopover() {
+      const open = popEl.classList.toggle('open');
+      trayBtn.classList.toggle('active', open);
+    }
+    trayBtn.addEventListener('click', togglePopover);
+    document.getElementById('btn-toggle-popover').addEventListener('click', togglePopover);
+    document.getElementById('btn-open-unlock').addEventListener('click', () => openUnlockModal('touchid'));
+    document.getElementById('btn-toggle-lock').addEventListener('click', toggleLockState);
+
+    // Close modals on backdrop click
+    document.querySelectorAll('.modal-backdrop').forEach(el => {
+      el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+    });
+
+    // Init
+    renderApps();
+    setIngestSample('nonsandbox');
+    renderLogs();
+  </script>
+</body>
+</html>
