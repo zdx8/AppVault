@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AppVault — macOS 原生应用保险箱与加密分身</title>
+  <meta name="description" content="原生 macOS 应用保险箱（隐藏 + AES-256 APFS 加密存储 + 应用分身）。Spotlight、Launchpad、Finder 均不可见，支持 Touch ID 解锁，退出即自动重锁。" />
+  <style>
+    :root {
+      --background: hsl(0 0% 100%);
+      --foreground: hsl(240 10% 3.9%);
+      --card: hsl(0 0% 100%);
+      --card-foreground: hsl(240 10% 3.9%);
+      --primary: hsl(240 5.9% 10%);
+      --primary-foreground: hsl(0 0% 98%);
+      --secondary: hsl(240 4.8% 95.9%);
+      --secondary-foreground: hsl(240 5.9% 10%);
+      --muted: hsl(240 4.8% 95.9%);
+      --muted-foreground: hsl(240 3.8% 46.1%);
+      --accent: hsl(240 4.8% 95.9%);
+      --border: hsl(240 5.9% 90%);
+      --radius: 0.5rem;
+      --emerald-bg: hsl(152 81% 96%);
+      --emerald-fg: hsl(161 94% 24%);
+      --emerald-border: hsl(152 60% 84%);
+      --amber-bg: hsl(48 96% 94%);
+      --amber-fg: hsl(32 95% 32%);
+      --amber-border: hsl(45 90% 80%);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-lg: 0 24px 60px -16px rgba(0, 0, 0, 0.14), 0 0 0 1px var(--border);
+    }
+
+    html.dark {
+      --background: hsl(240 10% 3.9%);
+      --foreground: hsl(0 0% 98%);
+      --card: hsl(240 10% 5.2%);
+      --card-foreground: hsl(0 0% 98%);
+      --primary: hsl(0 0% 98%);
+      --primary-foreground: hsl(240 5.9% 10%);
+      --secondary: hsl(240 3.7% 15.9%);
+      --secondary-foreground: hsl(0 0% 98%);
+      --muted: hsl(240 3.7% 15.9%);
+      --muted-foreground: hsl(240 5% 64.9%);
+      --accent: hsl(240 3.7% 15.9%);
+      --border: hsl(240 3.7% 15.9%);
+      --emerald-bg: hsl(160 60% 10%);
+      --emerald-fg: hsl(152 76% 62%);
+      --emerald-border: hsl(160 45% 20%);
+      --amber-bg: hsl(35 60% 11%);
+      --amber-fg: hsl(43 96% 64%);
+      --amber-border: hsl(35 48% 22%);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 28px 70px -16px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--border);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      background: var(--background);
+      color: var(--foreground);
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      height: 38px;
+      padding: 0 16px;
+      border-radius: var(--radius);
+      font-size: 13.5px;
+      font-weight: 500;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .btn-sm { height: 32px; padding: 0 12px; font-size: 12.5px; }
+    .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-outline { background: var(--background); color: var(--foreground); border-color: var(--border); }
+    .btn-outline:hover { background: var(--accent); }
+    .btn-ghost { background: transparent; color: var(--muted-foreground); }
+    .btn-ghost:hover { background: var(--accent); color: var(--foreground); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-size: 11.5px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--secondary);
+      color: var(--secondary-foreground);
+    }
+    .badge-emerald { background: var(--emerald-bg); color: var(--emerald-fg); border-color: var(--emerald-border); }
+    .badge-amber { background: var(--amber-bg); color: var(--amber-fg); border-color: var(--amber-border); }
+    .dot { width: 6px; height: 6px; border-radius: 9999px; display: inline-block; }
+    .dot-emerald { background: hsl(152 72% 42%); }
+
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: color-mix(in srgb, var(--background) 86%, transparent);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .navbar-inner {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+    }
+    .brand-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: #ffffff;
+      border: 1px solid hsl(240 5.9% 84%);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      font-size: 13px;
+      color: var(--muted-foreground);
+    }
+    .nav-links a:hover { color: var(--foreground); }
+    .nav-actions { display: flex; align-items: center; gap: 8px; }
+
+    .hero { padding: 68px 0 44px; text-align: center; }
+    .hero h1 {
+      font-size: clamp(30px, 5vw, 48px);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      max-width: 780px;
+      margin: 18px auto 16px;
+    }
+    .hero p.lead {
+      font-size: 16px;
+      color: var(--muted-foreground);
+      max-width: 640px;
+      margin: 0 auto 28px;
+    }
+    .hero-cta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .hero-meta { font-size: 12px; color: var(--muted-foreground); margin-bottom: 44px; }
+
+    .preview-window {
+      max-width: 920px;
+      margin: 0 auto;
+      background: var(--card);
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      text-align: left;
+    }
+    .preview-titlebar {
+      height: 40px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--background);
+    }
+    .tl-group { display: flex; gap: 7px; width: 90px; }
+    .tl { width: 11px; height: 11px; border-radius: 9999px; }
+    .preview-body { display: grid; grid-template-columns: 210px 1fr; min-height: 360px; }
+    .preview-sidebar {
+      border-right: 1px solid var(--border);
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: var(--background);
+    }
+    .preview-main { padding: 18px 20px; background: var(--background); }
+    .preview-kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+    .mini-card { padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+    .preview-app-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      background: var(--card);
+    }
+    .app-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--secondary);
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    section.section { padding: 64px 0; border-top: 1px solid var(--border); }
+    .section-head { max-width: 640px; margin-bottom: 32px; }
+    .section-head h2 { font-size: 24px; font-weight: 650; letter-spacing: -0.02em; margin-bottom: 8px; }
+    .section-head p { color: var(--muted-foreground); font-size: 14.5px; }
+
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+    .feature-card {
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+      box-shadow: var(--shadow-sm);
+    }
+    .feature-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--secondary);
+      border: 1px solid var(--border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .feature-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .feature-card p { font-size: 13px; color: var(--muted-foreground); line-height: 1.65; }
+
+    .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; background: var(--card); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th, td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    th { background: var(--muted); font-weight: 600; font-size: 12.5px; }
+    tr:last-child td { border-bottom: none; }
+
+    .step-card { padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+    .step-num { font-size: 11px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 6px; }
+    .step-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .step-card p { font-size: 12.5px; color: var(--muted-foreground); }
+
+    .code-box {
+      background: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      font-size: 12px;
+      overflow-x: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    footer { border-top: 1px solid var(--border); padding: 28px 0; color: var(--muted-foreground); font-size: 12.5px; }
+    .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    svg.ico { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    @media (max-width: 820px) {
+      .nav-links { display: none; }
+      .preview-body { grid-template-columns: 1fr; }
+      .preview-sidebar { display: none; }
+      .preview-kpi, .grid-3, .grid-2, .grid-4 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <a class="brand" href="#">
+        <span class="brand-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#18181b" stroke-width="2.2" stroke-linecap="round"/>
+            <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" fill="#18181b"/>
+            <circle cx="12" cy="15.2" r="1.4" fill="#ffffff"/>
+          </svg>
+        </span>
+        <span>AppVault</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">核心特性</a>
+        <a href="#modes">双模式对比</a>
+        <a href="#architecture">安全机制</a>
+        <a href="#install">下载与安装</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="btn btn-outline btn-sm" id="theme-toggle" type="button">深色模式</button>
+        <a class="btn btn-outline btn-sm" href="./ui-mockup.html">交互原型</a>
+        <a class="btn btn-primary btn-sm" href="#install">获取 AppVault</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <span class="badge"><span class="dot dot-emerald"></span>v0.1.0 · macOS 14+ 原生 Swift · MIT 开源</span>
+        <h1>把私密应用与数据，藏进 macOS 原生加密保险箱</h1>
+        <p class="lead">
+          基于系统原生 AES-256 APFS 稀疏加密卷构建，零内核扩展、零 FUSE。Finder、Spotlight 与 Launchpad 均不可见，支持 Touch ID 解锁、应用分身双开，退出即自动重锁隐藏。
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#install">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载 macOS 版 (DMG)
+          </a>
+          <a class="btn btn-outline" href="./ui-mockup.html">交互界面原型 →</a>
+        </div>
+        <div class="hero-meta">
+          支持 macOS 14 Sonoma 及以上 · Apple Silicon 原生构建 · 可执行核心约 946 KB
+        </div>
+
+        <div class="preview-window" aria-label="AppVault 桌面界面预览">
+          <div class="preview-titlebar">
+            <div class="tl-group">
+              <span class="tl" style="background:#ff5f57;"></span>
+              <span class="tl" style="background:#febc2e;"></span>
+              <span class="tl" style="background:#28c840;"></span>
+            </div>
+            <strong style="font-size:12.5px;">AppVault</strong>
+            <div style="width:90px;text-align:right;">
+              <span class="badge badge-emerald" style="padding:1px 7px;font-size:10.5px;"><span class="dot dot-emerald"></span>私有挂载</span>
+            </div>
+          </div>
+          <div class="preview-body">
+            <aside class="preview-sidebar">
+              <div>
+                <div class="mini-card" style="background:var(--muted);margin-bottom:12px;">
+                  <div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;">
+                    <span>主加密容器</span><span class="mono" style="color:var(--muted-foreground);">APFS</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--muted-foreground);margin-top:4px;">已用 1.92 GB / 上限 20 GB</div>
+                  <div style="height:5px;background:var(--border);border-radius:99px;margin-top:8px;overflow:hidden;">
+                    <div style="width:18%;height:100%;background:var(--primary);border-radius:99px;"></div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;font-size:12px;">
+                  <div style="padding:7px 10px;border-radius:6px;background:var(--secondary);font-weight:600;">保险箱应用 (2)</div>
+                  <div style="padding:7px 10px;color:var(--muted-foreground);">导入应用</div>
+                  <div style="padding:7px 10px;color:var(--muted-foreground);">安全与自动锁</div>
+                  <div style="padding:7px 10px;color:var(--muted-foreground);">活动日志</div>
+                </div>
+              </div>
+              <div style="padding:8px 10px;border-radius:6px;background:var(--primary);color:var(--primary-foreground);text-align:center;font-size:12px;font-weight:500;">
+                立即锁定并隐藏 (⌃⌥⌘L)
+              </div>
+            </aside>
+            <div class="preview-main">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div style="font-size:15px;font-weight:600;">保险箱应用</div>
+                  <div style="font-size:11.5px;color:var(--muted-foreground);">所有受管进程或 AppVault 退出时自动撤链并安全卸载加密卷</div>
+                </div>
+                <span class="btn btn-primary btn-sm" style="pointer-events:none;">+ 导入 .app</span>
+              </div>
+              <div class="preview-kpi">
+                <div class="mini-card">
+                  <div style="font-size:10.5px;color:var(--muted-foreground);">已隐身应用</div>
+                  <div style="font-size:16px;font-weight:600;">2</div>
+                </div>
+                <div class="mini-card">
+                  <div style="font-size:10.5px;color:var(--muted-foreground);">运行中进程</div>
+                  <div style="font-size:16px;font-weight:600;">1</div>
+                </div>
+                <div class="mini-card">
+                  <div style="font-size:10.5px;color:var(--muted-foreground);">卷内实际占用</div>
+                  <div style="font-size:16px;font-weight:600;">1.92 GB</div>
+                </div>
+                <div class="mini-card">
+                  <div style="font-size:10.5px;color:var(--muted-foreground);">隐身状态</div>
+                  <div style="font-size:13.5px;font-weight:600;padding-top:2px;">三重隐身</div>
+                </div>
+              </div>
+              <div class="preview-app-row">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span class="app-avatar">TE</span>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <strong style="font-size:13px;">Telegram (分身)</strong>
+                      <span class="badge badge-amber" style="padding:1px 6px;font-size:10.5px;">分身</span>
+                      <span class="badge badge-emerald" style="padding:1px 6px;font-size:10.5px;"><span class="dot dot-emerald"></span>运行中</span>
+                    </div>
+                    <div class="mono" style="font-size:11px;color:var(--muted-foreground);">ru.keepcoder.Telegram · 独立隔离 HOME · PID 精准追踪</div>
+                  </div>
+                </div>
+                <span class="btn btn-outline btn-sm" style="pointer-events:none;">退出应用</span>
+              </div>
+              <div class="preview-app-row" style="margin-bottom:0;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span class="app-avatar">OB</span>
+                  <div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <strong style="font-size:13px;">Obsidian</strong>
+                      <span class="badge" style="padding:1px 6px;font-size:10.5px;">已隐身</span>
+                    </div>
+                    <div class="mono" style="font-size:11px;color:var(--muted-foreground);">md.obsidian · App Support · Preferences · Launchpad 已注销</div>
+                  </div>
+                </div>
+                <span class="btn btn-primary btn-sm" style="pointer-events:none;">启动</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-head">
+          <h2>为隐私与原生体验而设计</h2>
+          <p>全部建立在 macOS 原生框架与加密磁盘能力之上，不安装任何第三方驱动。</p>
+        </div>
+        <div class="grid-3">
+          <article class="feature-card">
+            <div class="feature-icon">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h3>AES-256 APFS 稀疏加密卷</h3>
+            <p>容量随实际写入动态增长，支持解锁态实时查看卷内占用；删除分身或还原应用后，锁定时后台自动压缩回收宿主机磁盘空间。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M1 1l22 22"/></svg>
+            </div>
+            <h3>Finder / Spotlight / Launchpad 三重隐身</h3>
+            <p>挂载时采用私有隐藏目录并禁用 Spotlight 索引，移入应用时自动注销系统 LaunchServices 缓存，从启动台彻底隐身。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+            </div>
+            <h3>保留原应用的加密分身</h3>
+            <p>完整保留原版 Apple 开发者签名复制到加密卷，分配独立卷内 HOME 目录并按进程 PID 精准追踪，支持与宿主机原应用双开运行。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>
+            </div>
+            <h3>Touch ID 与全场景自动重锁</h3>
+            <p>支持系统硬件钥匙串指纹解锁与主密码管道直通；目标应用退出、AppVault 退出、休眠锁屏、空闲超时与快捷键急锁全自动触发。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">
+              <svg class="ico" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3>多层安全与防篡改加固</h3>
+            <p>内置密码错误持久化退避锁、路径穿越校验、提权路径白名单、运行时反调试与防注入自检、以及自身代码签名完整性校验。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+            </div>
+            <h3>原生 SwiftUI × shadcn/ui 体验</h3>
+            <p>极简浅/深色主题一键切换且与系统顶栏无缝同色；菜单栏常驻快捷启停，关闭主窗口自动隐藏 Dock 图标，支持登录自启与一键定位备份。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="modes">
+      <div class="container">
+        <div class="section-head">
+          <h2>两种收容模式对比</h2>
+          <p>按实际使用场景灵活选择「移入隐藏」或「创建加密分身」。</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>对比维度</th>
+                <th>移入隐藏（原位移除）</th>
+                <th>创建分身（保留原应用）</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>原位 /Applications/*.app</strong></td>
+                <td>移入加密卷并注销 Launchpad / Spotlight</td>
+                <td>保留在原位完全不受影响</td>
+              </tr>
+              <tr>
+                <td><strong>数据隔离机制</strong></td>
+                <td>迁入 ~/Library 数据，解锁时事务化软链桥接，锁定即撤链</td>
+                <td>加密卷内独立隔离 HOME 目录，宿主机零污染</td>
+              </tr>
+              <tr>
+                <td><strong>适用应用范围</strong></td>
+                <td>第三方非沙盒独立应用</td>
+                <td>非沙盒与沙盒应用均支持（保留原版签名，不触发重签名闪退）</td>
+              </tr>
+              <tr>
+                <td><strong>与原应用同时双开</strong></td>
+                <td>不适用（原应用已隐藏）</td>
+                <td>支持（独立进程实例 + 精确 PID 追踪）</td>
+              </tr>
+              <tr>
+                <td><strong>移出 / 清理方式</strong></td>
+                <td>「还原」完整迁回 /Applications 与 ~/Library 并恢复索引</td>
+                <td>「删除分身」仅移除卷内副本与数据，锁定后自动压缩回收磁盘</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="architecture">
+      <div class="container">
+        <div class="section-head">
+          <h2>全生命周期安全闭环</h2>
+          <p>宿主机明文配置绝不记录受管应用列表，应用清单仅存于加密卷内部。</p>
+        </div>
+        <div class="grid-4">
+          <div class="step-card">
+            <div class="step-num">STEP 01</div>
+            <h4>锁定静默态</h4>
+            <p>加密容器隐藏存储，无挂载点、无软链残留、无 Spotlight 索引。</p>
+          </div>
+          <div class="step-card">
+            <div class="step-num">STEP 02</div>
+            <h4>认证与私有挂载</h4>
+            <p>通过运行时自检与 Touch ID / 主密码验证后，经管道挂载至私有隐藏目录。</p>
+          </div>
+          <div class="step-card">
+            <div class="step-num">STEP 03</div>
+            <h4>隔离运行与监听</h4>
+            <p>按精确 PID 追踪受管进程与分身实例，同时订阅休眠、锁屏、空闲与急锁快捷键。</p>
+          </div>
+          <div class="step-card">
+            <div class="step-num">STEP 04</div>
+            <h4>退出重锁与回收</h4>
+            <p>目标应用或 AppVault 退出时自动撤链、安全卸载加密卷，并自动压缩回收空间。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="install">
+      <div class="container">
+        <div class="section-head">
+          <h2>下载与安装</h2>
+          <p>下载预编译 DMG 拖入 Applications 即可使用；或通过 Swift Package Manager 从源码构建。</p>
+        </div>
+        <div class="grid-2">
+          <div class="feature-card">
+            <h3>方式一：下载预编译 DMG</h3>
+            <p>前往仓库 Releases 页面下载 <span class="mono">AppVault-macOS-arm64.dmg</span>，打开后将 <span class="mono">AppVault.app</span> 拖入 <span class="mono">/Applications</span>。首次运行若系统提示未公证开发者，请前往「系统设置 → 隐私与安全性」点击「仍要打开」。</p>
+          </div>
+          <div class="feature-card">
+            <h3>方式二：从源码编译</h3>
+            <p>需要 macOS 14+ 与 Swift 5.9+（仅需 Command Line Tools，无需完整 Xcode）：</p>
+            <div class="code-box">
+              <code class="mono" id="cmd-build">./Scripts/package_app.sh && open dist/AppVault.app</code>
+              <button class="btn btn-outline btn-sm" type="button" onclick="copyText('cmd-build', this)">复制</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div>AppVault · MIT License · 原生 macOS 应用保险箱</div>
+      <div style="display:flex;gap:16px;">
+        <a href="#install">下载安装</a>
+        <a href="./ui-mockup.html">交互原型</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const toggleBtn = document.getElementById('theme-toggle');
+    toggleBtn.addEventListener('click', () => {
+      const html = document.documentElement;
+      const isDark = html.classList.toggle('dark');
+      html.classList.toggle('light', !isDark);
+      toggleBtn.textContent = isDark ? '浅色模式' : '深色模式';
+    });
+
+    function copyText(id, btn) {
+      const text = document.getElementById(id).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '已复制';
+        setTimeout(() => { btn.textContent = orig; }, 1600);
+      });
+    }
+  </script>
+</body>
+</html>
