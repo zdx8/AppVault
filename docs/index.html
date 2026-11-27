@@ -325,8 +325,8 @@
       </nav>
       <div class="nav-actions">
         <button class="btn btn-outline btn-sm" id="theme-toggle" type="button">深色模式</button>
-        <a class="btn btn-outline btn-sm" href="./ui-mockup.html">交互原型</a>
-        <a class="btn btn-primary btn-sm" href="#install">获取 AppVault</a>
+        <a class="btn btn-outline btn-sm" href="https://github.com/zdx8/AppVault" rel="noopener">GitHub</a>
+        <a class="btn btn-primary btn-sm" href="https://github.com/zdx8/AppVault/releases/latest" rel="noopener">获取 AppVault</a>
       </div>
     </div>
   </header>
@@ -334,17 +334,17 @@
   <main>
     <section class="hero">
       <div class="container">
-        <span class="badge"><span class="dot dot-emerald"></span>v0.1.0 · macOS 14+ 原生 Swift · MIT 开源</span>
+        <span class="badge"><span class="dot dot-emerald"></span>v0.1.1 · macOS 14+ 原生 Swift · MIT 开源</span>
         <h1>把私密应用与数据，藏进 macOS 原生加密保险箱</h1>
         <p class="lead">
           基于系统原生 AES-256 APFS 稀疏加密卷构建，零内核扩展、零 FUSE。Finder、Spotlight 与 Launchpad 均不可见，支持 Touch ID 解锁、应用分身双开，退出即自动重锁隐藏。
         </p>
         <div class="hero-cta">
-          <a class="btn btn-primary" href="#install">
+          <a class="btn btn-primary" href="https://github.com/zdx8/AppVault/releases/latest" rel="noopener">
             <svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            下载 macOS 版 (DMG)
+            前往 GitHub Releases 下载 DMG
           </a>
-          <a class="btn btn-outline" href="./ui-mockup.html">交互界面原型 →</a>
+          <a class="btn btn-outline" href="https://github.com/zdx8/AppVault" rel="noopener">查看源码 →</a>
         </div>
         <div class="hero-meta">
           支持 macOS 14 Sonoma 及以上 · Apple Silicon 原生构建 · 可执行核心约 946 KB
@@ -584,7 +584,7 @@
         <div class="grid-2">
           <div class="feature-card">
             <h3>方式一：下载预编译 DMG</h3>
-            <p>前往仓库 Releases 页面下载 <span class="mono">AppVault-macOS-arm64.dmg</span>，打开后将 <span class="mono">AppVault.app</span> 拖入 <span class="mono">/Applications</span>。首次运行若系统提示未公证开发者，请前往「系统设置 → 隐私与安全性」点击「仍要打开」。</p>
+            <p>请到官方仓库 Releases 下载（本站不托管安装包、不收集账号或密码）：<a href="https://github.com/zdx8/AppVault/releases/latest" rel="noopener"><span class="mono">github.com/zdx8/AppVault/releases</span></a>。下载 <span class="mono">AppVault-macOS-arm64.dmg</span> 后将 <span class="mono">AppVault.app</span> 拖入 <span class="mono">/Applications</span>。首次运行若系统提示未公证开发者，请前往「系统设置 → 隐私与安全性」点击「仍要打开」。</p>
           </div>
           <div class="feature-card">
             <h3>方式二：从源码编译</h3>
@@ -601,10 +601,13 @@
 
   <footer>
     <div class="container footer-inner">
-      <div>AppVault · MIT License · 原生 macOS 应用保险箱</div>
+      <div>
+        AppVault · MIT License · 开源项目介绍页<br />
+        <span style="color:var(--muted-foreground);font-size:12px;">本站不隶属于 Apple；不提供登录、不索取密码或支付信息。软件请仅从 GitHub Releases 获取。</span>
+      </div>
       <div style="display:flex;gap:16px;">
-        <a href="#install">下载安装</a>
-        <a href="./ui-mockup.html">交互原型</a>
+        <a href="https://github.com/zdx8/AppVault/releases/latest" rel="noopener">Releases</a>
+        <a href="https://github.com/zdx8/AppVault" rel="noopener">源码</a>
       </div>
     </div>
   </footer>
