@@ -328,18 +328,21 @@ final class AppVaultViewModel {
             isLockingInProgress = false
             isWorking = false
         }
-        integrityTimer?.invalidate()
-        integrityTimer = nil
 
         // 强制锁定/退出软件/休眠场景：先优雅关闭所有受管应用，超时后强杀残留进程确保容器可卸载
         if force {
             await terminateAllManagedAppsGracefully()
         } else if !runningPIDs.isEmpty {
+            // 仍有受管进程：仅提示，保持解锁态与完整性看门狗继续运行
             let runningNames = manifest.apps.filter { runningPIDs[$0.id] != nil }.map(\.displayName)
             busyProcessesAlert = runningNames
             showBusyAlert = true
             return
         }
+
+        // 确认即将卸载后才停看门狗，避免占用早退导致解锁态失去完整性巡检
+        integrityTimer?.invalidate()
+        integrityTimer = nil
 
         // 1. 撤除所有已映射的软链
         for app in manifest.apps {
@@ -571,7 +574,10 @@ final class AppVaultViewModel {
                 }.value
             }
 
-            manifest.apps.removeAll { $0.bundleId == record.bundleId }
+            // move：同 Bundle ID 只保留一条移入记录；clone：允许多个分身并存，互不覆盖
+            if mode == .move {
+                manifest.apps.removeAll { $0.bundleId == record.bundleId && $0.mode == .move }
+            }
             manifest.apps.append(record)
             try store.saveManifest(manifest, in: mountPoint)
 

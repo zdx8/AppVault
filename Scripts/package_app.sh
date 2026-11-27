@@ -13,16 +13,16 @@ CONTENTS_DIR="${APP_BUNDLE}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 
-SPM_EXTRA_FLAGS=()
+BUILD_ARGS=(-c release)
 if [[ "${DISABLE_SANDBOX:-0}" == "1" ]]; then
-  SPM_EXTRA_FLAGS=(--disable-sandbox --cache-path /tmp/spm-cache --config-path /tmp/spm-config --security-path /tmp/spm-security)
+  BUILD_ARGS+=(--disable-sandbox --cache-path /tmp/spm-cache --config-path /tmp/spm-config --security-path /tmp/spm-security)
 fi
 
 echo "[1/4] 编译 Release 可执行文件..."
 cd "${ROOT_DIR}"
-swift build -c release "${SPM_EXTRA_FLAGS[@]}"
+swift build "${BUILD_ARGS[@]}"
 
-BIN_PATH="$(swift build -c release "${SPM_EXTRA_FLAGS[@]}" --show-bin-path)/${APP_NAME}"
+BIN_PATH="$(swift build "${BUILD_ARGS[@]}" --show-bin-path)/${APP_NAME}"
 if [[ ! -f "${BIN_PATH}" ]]; then
   echo "未找到编译产物：${BIN_PATH}" >&2
   exit 1
