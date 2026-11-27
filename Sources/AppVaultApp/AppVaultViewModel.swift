@@ -321,6 +321,19 @@ final class AppVaultViewModel {
 
     func lockVault(reason: String = "手动锁定", force: Bool = false) async {
         guard isUnlocked, !isLockingInProgress, let mountPoint = currentMountPoint, var cfg = hostConfig else { return }
+
+        // FIX-06：后台 ingest/clone/restore 进行中时，非强制锁定直接返回；强制锁定先等待任务结束
+        if isWorking {
+            if !force { return }
+            for _ in 0..<60 {
+                if !isWorking { break }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+            if isWorking {
+                appendLog(.warning, "后台任务超时仍未结束，继续强制锁定（可能中断写入）")
+            }
+        }
+
         isLockingInProgress = true
         isWorking = true
         errorMessage = nil
@@ -340,20 +353,19 @@ final class AppVaultViewModel {
             return
         }
 
-        // 确认即将卸载后才停看门狗，避免占用早退导致解锁态失去完整性巡检
-        integrityTimer?.invalidate()
-        integrityTimer = nil
-
         // 1. 撤除所有已映射的软链
         for app in manifest.apps {
             symlinkBridge.deactivateMappings(app.dataMappings, mountPoint: mountPoint)
         }
 
-        // 2. 卸载加密卷
+        // 2. 卸载加密卷（成功后再停看门狗；失败则恢复巡检，FIX-02）
         do {
             try await Task.detached(priority: .userInitiated) { [engine] in
                 try engine.unmountVault(mountPoint: mountPoint, force: force)
             }.value
+
+            integrityTimer?.invalidate()
+            integrityTimer = nil
 
             if cfg.clearQuickLookOnLock {
                 Task.detached(priority: .utility) { [engine] in
@@ -396,8 +408,10 @@ final class AppVaultViewModel {
             busyProcessesAlert = procs
             showBusyAlert = true
             appendLog(.warning, "卸载受阻：仍有进程占用容器（\(procs.joined(separator: ", "))）")
+            if isUnlocked { startRuntimeIntegrityWatchdog() }
         } catch {
             errorMessage = error.localizedDescription
+            if isUnlocked { startRuntimeIntegrityWatchdog() }
         }
     }
 
@@ -511,18 +525,21 @@ final class AppVaultViewModel {
         guard isUnlocked else { return }
         var matchedRecordId: String? = runningPIDs.first(where: { $0.value == pid })?.key
         if matchedRecordId == nil {
-            matchedRecordId = manifest.apps.first(where: { $0.mode == .move && $0.bundleId == bundleId })?.id
+            // FIX-05：clone 与 move 均按 bundleId 回退，避免 PID 丢失导致无法自动重锁
+            matchedRecordId = manifest.apps.first(where: { $0.bundleId == bundleId && runningPIDs[$0.id] != nil })?.id
+                ?? manifest.apps.first(where: { $0.bundleId == bundleId })?.id
         }
         guard let recordId = matchedRecordId else { return }
 
         runningPIDs.removeValue(forKey: recordId)
         let name = manifest.apps.first(where: { $0.id == recordId })?.displayName ?? bundleId
         appendLog(.info, "检测到保险箱应用 \(name) 已退出（PID \(pid)）")
+        syncRunningState()
 
         guard hostConfig?.autoLockOnQuit == true, runningPIDs.isEmpty else { return }
-        Task {
+        Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
-            guard self.isUnlocked, self.runningPIDs.isEmpty else { return }
+            guard let self, self.isUnlocked, self.runningPIDs.isEmpty else { return }
             await self.lockVault(reason: "目标应用已全部退出，自动重锁")
         }
     }
@@ -824,8 +841,9 @@ final class AppVaultViewModel {
 
     func notifyBanner(_ text: String) {
         statusBanner = text
-        Task {
+        Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 2_400_000_000)
+            guard let self else { return }
             if self.statusBanner == text { self.statusBanner = nil }
         }
     }

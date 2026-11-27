@@ -331,9 +331,15 @@ public final class SparseBundleEngine: @unchecked Sendable {
         try process.run()
 
         if let stdinString, let stdinPipe {
-            var bytes = Array(stdinString.utf8)
-            stdinPipe.fileHandleForWriting.write(Data(bytes))
-            for i in bytes.indices { bytes[i] = 0 }
+            // FIX-10：用可覆写 Data 写入后立即清零，减少明文残留于堆的窗口
+            var payload = Array(stdinString.utf8)
+            payload.withUnsafeMutableBytes { raw in
+                if let base = raw.baseAddress, raw.count > 0 {
+                    stdinPipe.fileHandleForWriting.write(Data(bytes: base, count: raw.count))
+                    memset(base, 0, raw.count)
+                }
+            }
+            for i in payload.indices { payload[i] = 0 }
             try? stdinPipe.fileHandleForWriting.close()
         }
 

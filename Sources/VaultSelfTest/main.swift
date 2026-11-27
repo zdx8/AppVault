@@ -94,6 +94,25 @@ allPassed = runCase("2. 软链桥接建立、安全撤除与真实目录冲突�
         rejected = true
     }
     try assertTrue(rejected, "宿主存在真实目录时未拒绝覆盖")
+
+    try FileManager.default.removeItem(at: hostURL)
+    let foreignTarget = fakeHome.appendingPathComponent("elsewhere", isDirectory: true)
+    try FileManager.default.createDirectory(at: foreignTarget, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: hostURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(at: hostURL, withDestinationURL: foreignTarget)
+    var foreignRejected = false
+    do {
+        try bridge.activateMappings([mapping], mountPoint: fakeMount)
+    } catch SymlinkBridgeError.hostPathOccupiedByForeignSymlink {
+        foreignRejected = true
+    } catch {
+        foreignRejected = true
+    }
+    try assertTrue(foreignRejected, "宿主存在异目标软链时未拒绝覆盖")
+    try assertTrue(
+        (try? FileManager.default.destinationOfSymbolicLink(atPath: hostURL.path)) == foreignTarget.path,
+        "拒绝后异目标软链应保留"
+    )
 } && allPassed
 
 allPassed = runCase("3. 目标 .app 解析、非沙盒检测与 ~/Library 数据扫描") {
@@ -123,6 +142,55 @@ allPassed = runCase("3. 目标 .app 解析、非沙盒检测与 ~/Library 数据
     try assertTrue(inspection.displayName == "SampleTool", "名称解析错误")
     try assertTrue(!inspection.isSystemProtected && !inspection.isSandboxed, "误判为系统或沙盒应用")
     try assertTrue(inspection.candidates.count == 1, "未扫描到 ~/Library/Application Support 数据目录")
+} && allPassed
+
+allPassed = runCase("3b. 恶意显示名路径穿越拒绝 + 提权白名单") {
+    let tempRoot = try makeTempRoot()
+    defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+    let fakeHome = tempRoot.appendingPathComponent("home", isDirectory: true)
+    let evilApp = tempRoot.appendingPathComponent("Evil.app", isDirectory: true)
+    let contentsDir = evilApp.appendingPathComponent("Contents", isDirectory: true)
+    try FileManager.default.createDirectory(at: contentsDir, withIntermediateDirectories: true)
+    let plist: [String: Any] = [
+        "CFBundleIdentifier": "com.example.evil",
+        "CFBundleDisplayName": "../../Documents",
+        "CFBundleShortVersionString": "1.0"
+    ]
+    let plistData = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+    try plistData.write(to: contentsDir.appendingPathComponent("Info.plist"))
+
+    let service = AppIngestService(homeDirectory: fakeHome)
+    var rejected = false
+    do {
+        _ = try service.inspectApp(at: evilApp)
+    } catch {
+        rejected = true
+    }
+    try assertTrue(rejected, "恶意 CFBundleDisplayName=../../Documents 应被拒绝")
+
+    let docsEvil = fakeHome.appendingPathComponent("Documents/evil.app", isDirectory: true)
+    try FileManager.default.createDirectory(
+        at: docsEvil.appendingPathComponent("Contents", isDirectory: true),
+        withIntermediateDirectories: true
+    )
+    try plistData.write(to: docsEvil.appendingPathComponent("Contents/Info.plist"))
+    var adminRejected = false
+    do {
+        _ = try service.validatePathForElevatedAppOperation(docsEvil)
+    } catch {
+        adminRejected = true
+    }
+    try assertTrue(adminRejected, "~/Documents/evil.app 不得通过提权白名单")
+
+    try assertTrue(
+        PathSafety.isAppVaultMountOrphanDestination("/tmp/example/Library/Caches/.av_abcdef012345/apps"),
+        "应识别标准 .av_ 挂载断链"
+    )
+    try assertTrue(
+        !PathSafety.isAppVaultMountOrphanDestination("/tmp/example/Library/Caches/.av_backup/old"),
+        "非 12 位 hex 的 .av_ 路径不得匹配"
+    )
 } && allPassed
 
 if CommandLine.arguments.contains("--skip-disk-e2e") {

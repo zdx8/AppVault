@@ -51,6 +51,9 @@ public enum AppIngestError: LocalizedError {
     case sandboxedAppBlocked(String)
     case appCurrentlyRunning(String)
     case moveFailed(String)
+    case unsafeAppIdentity(String)
+    case pathOutsideAllowedRoot(String)
+    case adminPathNotWhitelisted(String)
 
     public var errorDescription: String? {
         switch self {
@@ -64,6 +67,12 @@ public enum AppIngestError: LocalizedError {
             return "\(name) 正在运行，请先完全退出后再执行移入或还原操作。"
         case .moveFailed(let reason):
             return "文件迁移失败：\(reason)"
+        case .unsafeAppIdentity(let detail):
+            return "应用标识不安全，已拒绝导入：\(detail)"
+        case .pathOutsideAllowedRoot(let detail):
+            return "路径安全校验失败：\(detail)"
+        case .adminPathNotWhitelisted(let path):
+            return "提权操作仅允许 /Applications 或 ~/Applications 下的真实 .app：\(path)"
         }
     }
 }
@@ -84,17 +93,25 @@ public final class AppIngestService {
 
     /// 扫描目标 .app 信息、沙盒状态与 ~/Library 关联数据候选列表。
     public func inspectApp(at appURL: URL) throws -> AppInspectionResult {
-        let normalizedURL = appURL.standardizedFileURL
+        let normalizedURL = appURL.resolvingSymlinksInPath().standardizedFileURL
         guard normalizedURL.pathExtension.lowercased() == "app",
               let bundle = Bundle(url: normalizedURL),
-              let bundleId = bundle.bundleIdentifier,
-              !bundleId.isEmpty else {
+              let rawBundleId = bundle.bundleIdentifier,
+              !rawBundleId.isEmpty else {
             throw AppIngestError.invalidAppBundle(normalizedURL.path)
         }
 
-        let displayName = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+        let rawDisplayName = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
             ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
             ?? normalizedURL.deletingPathExtension().lastPathComponent
+        let displayName: String
+        let bundleId: String
+        do {
+            displayName = try PathSafety.sanitizePathComponent(rawDisplayName, field: "displayName")
+            bundleId = try PathSafety.sanitizeBundleId(rawBundleId)
+        } catch {
+            throw AppIngestError.unsafeAppIdentity(error.localizedDescription)
+        }
         let version = (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "1.0"
         let isSystem = normalizedURL.path.hasPrefix("/System/")
         let isSandboxed = detectAppSandbox(at: normalizedURL)
@@ -132,6 +149,7 @@ public final class AppIngestService {
     /// 扫描 ~/Library 下与目标应用匹配的 Application Support / Preferences / Caches 目录。
     public func discoverLibraryData(displayName: String, bundleId: String) -> [DiscoveredDataCandidate] {
         let fm = FileManager.default
+        let libraryRoot = homeDirectory.appendingPathComponent("Library", isDirectory: true)
         let safeBundle = bundleId.replacingOccurrences(of: "/", with: "_")
         var results: [DiscoveredDataCandidate] = []
         var seenHostPaths = Set<String>()
@@ -146,11 +164,12 @@ public final class AppIngestService {
 
         for probe in probeList {
             let hostURL = homeDirectory.appendingPathComponent(probe.relPath)
-            let canonical = hostURL.standardizedFileURL.path
+            guard PathSafety.isStrictlyContained(hostURL, within: libraryRoot) else { continue }
+            let canonical = hostURL.resolvingSymlinksInPath().standardizedFileURL.path
             let dedupKey = canonical.lowercased()
             guard !seenHostPaths.contains(dedupKey) else { continue }
-            guard fm.fileExists(atPath: canonical) else { continue }
-            if let attrs = try? fm.attributesOfItem(atPath: canonical),
+            guard fm.fileExists(atPath: hostURL.path) else { continue }
+            if let attrs = try? fm.attributesOfItem(atPath: hostURL.path),
                (attrs[.type] as? FileAttributeType) == .typeSymbolicLink {
                 continue
             }
@@ -165,6 +184,17 @@ public final class AppIngestService {
             ))
         }
         return results
+    }
+
+    /// 宿主路径须在 ~/Library，卷内路径须在 mountPoint。
+    private func assertLibraryAndVaultPaths(hostURL: URL, vaultURL: URL, mountPoint: URL) throws {
+        let libraryRoot = homeDirectory.appendingPathComponent("Library", isDirectory: true)
+        guard PathSafety.isStrictlyContained(hostURL, within: libraryRoot) else {
+            throw AppIngestError.pathOutsideAllowedRoot("宿主 \(hostURL.path) 不在 ~/Library 内")
+        }
+        guard PathSafety.isStrictlyContained(vaultURL, within: mountPoint) else {
+            throw AppIngestError.pathOutsideAllowedRoot("卷内 \(vaultURL.path) 不在挂载点内")
+        }
     }
 
     /// 将目标 .app 及选中的关联数据迁入已挂载的加密卷，并注销原路径的 LaunchServices 缓存。
@@ -215,6 +245,7 @@ public final class AppIngestService {
         for candidate in selectedCandidates where candidate.selected {
             let srcURL = homeDirectory.appendingPathComponent(candidate.hostRelativePath)
             let dstURL = mountPoint.appendingPathComponent(candidate.vaultRelativePath)
+            try assertLibraryAndVaultPaths(hostURL: srcURL, vaultURL: dstURL, mountPoint: mountPoint)
             guard fm.fileExists(atPath: srcURL.path) else { continue }
             try fm.createDirectory(at: dstURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             if fm.fileExists(atPath: dstURL.path) {
@@ -292,6 +323,7 @@ public final class AppIngestService {
         for mapping in record.dataMappings {
             let vaultDataURL = mapping.resolvedVaultURL(mountPoint: mountPoint)
             let hostDataURL = mapping.resolvedHostURL(homeDirectory: homeDirectory)
+            try assertLibraryAndVaultPaths(hostURL: hostDataURL, vaultURL: vaultDataURL, mountPoint: mountPoint)
             guard fm.fileExists(atPath: vaultDataURL.path) else { continue }
             if fm.fileExists(atPath: hostDataURL.path) {
                 try fm.removeItem(at: hostDataURL)
@@ -315,11 +347,11 @@ public final class AppIngestService {
 
         let fm = FileManager.default
         let cloneUUID = UUID().uuidString.lowercased()
-        let shortId = String(cloneUUID.prefix(8))
-        let cloneDirRel = "clones/\(shortId)"
+        // 使用完整 UUID 作目录名，避免 8 位短 ID 碰撞覆盖另一分身（FIX-09）
+        let cloneDirRel = "clones/\(cloneUUID)"
         let appFileName = inspection.appURL.lastPathComponent
         let vaultAppRel = "\(cloneDirRel)/\(appFileName)"
-        let homeRel = "homes/\(shortId)"
+        let homeRel = "homes/\(cloneUUID)"
 
         let destAppURL = mountPoint.appendingPathComponent(vaultAppRel, isDirectory: true)
         let cloneHomeURL = mountPoint.appendingPathComponent(homeRel, isDirectory: true)
@@ -387,18 +419,23 @@ public final class AppIngestService {
         }
     }
 
-    /// 严格校验允许提权删除/覆盖的路径，防止误删系统或非 .app 目录。
+    /// 提权白名单：仅 /Applications 与 ~/Applications，解析软链后仍须在白名单内，且为真实 .app bundle。
     private func validateAppBundlePathForAdminOp(_ url: URL) throws -> String {
-        let path = url.standardizedFileURL.path
-        guard !path.contains("\0"),
-              path.hasSuffix(".app"),
-              path != "/",
-              path != "/Applications",
-              !path.hasPrefix("/System/"),
-              !path.hasPrefix("/usr/"),
-              !path.hasPrefix("/bin/"),
-              !path.hasPrefix("/sbin/") else {
-            throw AppIngestError.moveFailed("安全校验拒绝提权操作非标准 .app 路径：\(path)")
+        let resolved = url.resolvingSymlinksInPath().standardizedFileURL
+        let path = resolved.path
+        guard !path.contains("\0"), path.hasSuffix(".app"), path != "/", path != "/Applications" else {
+            throw AppIngestError.adminPathNotWhitelisted(path)
+        }
+        let applications = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        let userApplications = homeDirectory.appendingPathComponent("Applications", isDirectory: true)
+        let allowed = PathSafety.isStrictlyContained(resolved, within: applications)
+            || PathSafety.isStrictlyContained(resolved, within: userApplications)
+        guard allowed else {
+            throw AppIngestError.adminPathNotWhitelisted(path)
+        }
+        let infoPlist = resolved.appendingPathComponent("Contents/Info.plist")
+        guard FileManager.default.fileExists(atPath: infoPlist.path) else {
+            throw AppIngestError.adminPathNotWhitelisted(path)
         }
         return path
     }
@@ -459,6 +496,11 @@ public final class AppIngestService {
 
     public func isAppRunning(bundleId: String) -> Bool {
         NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == bundleId }
+    }
+
+    /// 供自检调用的提权路径白名单入口。
+    public func validatePathForElevatedAppOperation(_ url: URL) throws -> String {
+        try validateAppBundlePathForAdminOp(url)
     }
 
     private func unregisterFromLaunchServices(path: String) {

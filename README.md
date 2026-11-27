@@ -30,7 +30,11 @@
 swift run VaultSelfTest
 
 # 编译 Release 版本并打包 dist/AppVault.app
-./Scripts/package_app.sh
+# 若本机 SPM 报 sandbox_apply: Operation not permitted，加 DISABLE_SANDBOX=1：
+DISABLE_SANDBOX=1 ./Scripts/package_app.sh
+
+# 可选：生成本机自签证书「AppVault Local Sign」（不能用于公证）
+./Scripts/create_local_signing_cert.sh
 
 # 打开应用
 open dist/AppVault.app
@@ -38,6 +42,8 @@ open dist/AppVault.app
 
 > 首次打开若触发系统未公证提示，可在「系统设置 → 隐私与安全性」中允许打开，或执行：
 > `xattr -dr com.apple.quarantine dist/AppVault.app`
+>
+> 本地自签无法通过 Gatekeeper 公证评估；公开发布需 Developer ID Application 签名并 `notarytool` 公证。
 
 ## 许可证
 

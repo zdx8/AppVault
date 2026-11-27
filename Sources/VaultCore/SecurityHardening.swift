@@ -75,6 +75,8 @@ public final class SecurityHardening {
     }
 
     /// 4. 校验自身 .app 包的代码签名完整性（防二进制 Patch / Info.plist 篡改）。
+    /// 设计局限（FIX-12）：ad-hoc / 自签下本检查只验证「与当前嵌入签名一致」；
+    /// 攻击者篡改后用同一自签身份重签即可通过。正式分发需 Developer ID + 固定 Team ID 校验。
     public func verifySelfCodeSignature() -> SecurityIntegrityStatus {
         var selfCode: SecCode?
         let copyStatus = SecCodeCopySelf(SecCSFlags(), &selfCode)

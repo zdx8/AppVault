@@ -10,6 +10,7 @@ public enum KeychainAuthError: LocalizedError {
     case keychainWriteFailed(OSStatus)
     case keychainReadFailed(OSStatus)
     case itemNotFound
+    case accessControlUnavailable(String)
 
     public var errorDescription: String? {
         switch self {
@@ -23,6 +24,8 @@ public enum KeychainAuthError: LocalizedError {
             return "读取钥匙串失败（OSStatus \(status)）。"
         case .itemNotFound:
             return "钥匙串中尚未保存该容器的 Touch ID 密钥，请先使用主密码解锁并启用 Touch ID。"
+        case .accessControlUnavailable(let detail):
+            return "无法以生物识别/设备密码保护主密码，已拒绝写入无 ACL 的钥匙串项：\(detail)"
         }
     }
 }
@@ -41,46 +44,55 @@ public final class KeychainAuthService {
         return (ok, error?.localizedDescription)
     }
 
-    /// 将加密卷主密码以 `.biometryCurrentSet` + `WhenUnlockedThisDeviceOnly` 封装存入系统钥匙串。
-    /// 若 ad-hoc 签名下 Secure Enclave 访问控制受限，则回退为先用 LAContext 验证 Touch ID 再读取标准设备绑定钥匙串条目。
+    /// 将加密卷主密码以 Access Control 保护写入钥匙串。
+    /// 优先 `.biometryCurrentSet`；若 entitlement 不足则回退为仍带 ACL 的 `.devicePasscode`。
+    /// **绝不**写入无 `kSecAttrAccessControl` 的明文条目（FIX-03）。
     public func savePassphrase(_ passphrase: String, forVaultId vaultId: String) throws {
         deletePassphrase(forVaultId: vaultId)
         guard let data = passphrase.data(using: .utf8) else { return }
 
         var cfError: Unmanaged<CFError>?
-        let accessControl = SecAccessControlCreateWithFlags(
+        guard let biometryAC = SecAccessControlCreateWithFlags(
             kCFAllocatorDefault,
             kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
             .biometryCurrentSet,
             &cfError
-        )
+        ) else {
+            let detail = cfError?.takeRetainedValue().localizedDescription ?? "无法创建 biometry ACL"
+            throw KeychainAuthError.accessControlUnavailable(detail)
+        }
 
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: vaultId,
-            kSecValueData as String: data
+            kSecValueData as String: data,
+            kSecAttrAccessControl as String: biometryAC
         ]
-        if let accessControl {
-            query[kSecAttrAccessControl as String] = accessControl
-        } else {
-            query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        }
 
         var status = SecItemAdd(query as CFDictionary, nil)
-        // Ad-hoc 签名构建时部分系统会返回 errSecMissingEntitlement (-34018)，此时降级为标准本机钥匙串 + LAContext 门禁
-        if status == errSecMissingEntitlement {
-            let fallbackQuery: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: serviceName,
-                kSecAttrAccount as String: vaultId,
-                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-                kSecValueData as String: data
-            ]
-            status = SecItemAdd(fallbackQuery as CFDictionary, nil)
+        if status == errSecMissingEntitlement || status == errSecParam || status == errSecAuthFailed {
+            var passcodeError: Unmanaged<CFError>?
+            guard let passcodeAC = SecAccessControlCreateWithFlags(
+                kCFAllocatorDefault,
+                kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+                .devicePasscode,
+                &passcodeError
+            ) else {
+                let detail = passcodeError?.takeRetainedValue().localizedDescription
+                    ?? "biometry ACL 写入失败（OSStatus \(status)）且无法创建 devicePasscode ACL"
+                throw KeychainAuthError.accessControlUnavailable(detail)
+            }
+            query[kSecAttrAccessControl as String] = passcodeAC
+            status = SecItemAdd(query as CFDictionary, nil)
         }
 
         guard status == errSecSuccess else {
+            if status == errSecMissingEntitlement {
+                throw KeychainAuthError.accessControlUnavailable(
+                    "当前签名缺少钥匙串 Access Control 权限（OSStatus \(status)），请使用稳定代码签名后重试"
+                )
+            }
             throw KeychainAuthError.keychainWriteFailed(status)
         }
     }
