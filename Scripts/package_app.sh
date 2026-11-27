@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="AppVault"
 BUNDLE_ID="com.appvault.macos"
-VERSION="0.1.0"
-BUILD_NUM="1"
+VERSION="0.1.1"
+BUILD_NUM="2"
 
 DIST_DIR="${ROOT_DIR}/dist"
 APP_BUNDLE="${DIST_DIR}/${APP_NAME}.app"
